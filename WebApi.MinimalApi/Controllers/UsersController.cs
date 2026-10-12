@@ -2,12 +2,10 @@
 using AutoMapper;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.VisualBasic.FileIO;
 using WebApi.MinimalApi.Domain;
 using WebApi.MinimalApi.Models;
+
 namespace WebApi.MinimalApi.Controllers;
-
-
 
 [Route("api/[controller]")]
 [ApiController]
@@ -23,12 +21,18 @@ public class UsersController : Controller
     }
 
     [HttpGet("{userId}", Name = nameof(GetUserById))]
+    [HttpHead("{userId}")]
     [Produces("application/json", "application/xml")]
     public ActionResult<UserDto> GetUserById([FromRoute] Guid userId)
     {
         var user = userRepository.FindById(userId);
         if (user is null)
             return NotFound();
+
+        // Поддержка HEAD-запросов (без возврата тела ответа)
+        if (HttpMethods.IsHead(Request.Method))
+            return Ok();
+
         var dto = mapper.Map<UserDto>(user);
     
         return Ok(dto);
@@ -126,5 +130,17 @@ public class UsersController : Controller
 
         return NoContent();
     }
-}
 
+    [HttpDelete("{userId}")]
+    public IActionResult DeleteUser([FromRoute] Guid userId)
+    {
+        var user = userRepository.FindById(userId);
+        if (user is null)
+        {
+            return NotFound();
+        }
+
+        userRepository.Delete(userId);
+        return NoContent();
+    }
+}
