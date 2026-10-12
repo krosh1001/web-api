@@ -1,5 +1,6 @@
 ﻿using System.Data;
 using AutoMapper;
+using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.VisualBasic.FileIO;
 using WebApi.MinimalApi.Domain;
@@ -59,6 +60,71 @@ public class UsersController : Controller
             nameof(GetUserById),
             new { userId = createdUser.Id },
             mapper.Map<UserDto>(createdUser));
+    }
+
+    [HttpPut("{userId}")]
+    public IActionResult UpdateUser([FromRoute] Guid userId, [FromBody] UserToPutDto data)
+    {
+        if (data is null)
+        {
+            return BadRequest();
+        }
+
+        if (!ModelState.IsValid)
+        {
+            if (ModelState.ContainsKey(nameof(userId)))
+            {
+                return BadRequest();
+            }
+
+            return UnprocessableEntity(ModelState);
+        }
+
+        var entity = mapper.Map(data, new UserEntity(userId));
+        userRepository.UpdateOrInsert(entity, out var isInserted);
+
+        if (isInserted)
+        {
+            return CreatedAtRoute(nameof(GetUserById), new { userId = entity.Id }, entity.Id);
+        }
+
+        return NoContent();
+    }
+
+    [HttpPatch("{userId}")]
+    public IActionResult PartiallyUpdateUser([FromRoute] Guid userId,
+        [FromBody] JsonPatchDocument<UserToPutDto> patchDoc)
+    {
+        if (patchDoc is null)
+        {
+            return BadRequest();
+        }
+
+        var user = userRepository.FindById(userId);
+        if (user is null)
+        {
+            return NotFound();
+        }
+
+        var data = new UserToPutDto
+        {
+            Login = user.Login,
+            FirstName = user.FirstName,
+            LastName = user.LastName
+        };
+
+        patchDoc.ApplyTo(data, ModelState);
+        TryValidateModel(data);
+
+        if (!ModelState.IsValid)
+        {
+            return UnprocessableEntity(ModelState);
+        }
+
+        mapper.Map(data, user);
+        userRepository.Update(user);
+
+        return NoContent();
     }
 }
 
